@@ -32,3 +32,5 @@ bridge/processed/*.json
 *.db
 *.sqlite
 *.sqlite3
+
+.claude/
