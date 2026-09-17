@@ -1,0 +1,34 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Java / Spring Boot
+backend/target/
+*.class
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+
+# Bridge runtime files (keep the folders, ignore contents)
+bridge/incoming/*.json
+bridge/outgoing/*.json
+bridge/processed/*.json
+
+# Editor / OS
+.DS_Store
+*~$*
+.idea/
+.vscode/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
