@@ -1,11 +1,45 @@
+# Local environment and credentials (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Dependencies and build output
 node_modules/
 dist/
 target/
-.venv/
-__pycache__/
-.pytest_cache/
-.env
-.runtime/
-test-results/
-.DS_Store
 *.tsbuildinfo
+.vite/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime files and logs
+.runtime/
+*.log
+*.pid
+
+# Test and coverage reports
+test-results/
+playwright-report/
+playwright/.cache/
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+
+# Editor and operating system files
+.idea/
+*.iml
+*.swp
+*.swo
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
