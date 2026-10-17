@@ -1,188 +1,124 @@
-# AGECM — Adaptive Geotechnical Edge-Consensus Mesh
+# AGECM Revised
 
-Real-time mine subsidence monitoring and prediction. **College Computer Networks project.**
+A fresh local implementation in this folder. React + TypeScript/Vite/Tailwind, Spring Boot 3.3.5 targeting Java 17, PostgreSQL/Flyway, and a standard-library Python ThingSpeak adapter. Five pages: overview, monitoring, analytics, alerts, architecture. Four original generated images are integrated and served locally.
 
-Software demonstration of an edge-consensus sensor mesh using **simulated sensor data** and **simulated networking**. No physical hardware has been built or tested — the proposed ESP32 / MPU6050 / VL53L0X / SX1276 node is a **hardware proposal only** (see [Hardware proposal vs software](#3-hardware-proposal-vs-software-implementation)).
+Exactly **two sensing ESP32s** are represented. The third ESP32 is an **independent central reader/display** and remains Unverified. Demonstration data is always labeled and stored as `source=demo`; live ThingSpeak data uses `source=cloud_hardware`. No active LoRa, physical mesh, peer consensus or validated mine-failure prediction is claimed.
 
----
+## Architecture
 
-## 1. Project overview
-
-AGECM is a mesh of geotechnical sensor nodes that watch a mine roof/floor for subsidence. Each node:
-
-1. Reads simulated tilt / displacement / vibration sensors.
-2. Filters and extracts features at the edge.
-3. Runs a 4-state machine (`NORMAL → WARNING → CRITICAL`, plus `FAULT`).
-4. Asks neighbours for corroboration (**consensus**) before escalating to `CRITICAL`.
-5. Adapts its radio + sampling to its state.
-6. Forwards telemetry two hops to a gateway.
-
-A Spring Boot gateway stores everything in PostgreSQL and pushes live updates to a React dashboard over WebSocket. A **linear front-estimation prototype** estimates the direction a subsidence front is moving.
-
-## 2. Architecture
-
-```
-   Cisco Packet Tracer            (optional network-simulation layer)
-   network simulation
-          │  (local JSON/file bridge)
-          ▼
-   Python AGECM engine            sensors · filter · features · state
-   (edge intelligence)            machine · consensus · adaptive radio ·
-          │                       two-hop forwarding · front estimate
-      REST / JSON
-          ▼
-   Spring Boot backend            REST API · validation · persistence ·
-   (gateway)                      alerts · WebSocket broadcast
-          │
-      PostgreSQL                  telemetry · nodes · consensus · network ·
-          │                       alerts · simulation_runs
-      WebSocket
-          ▼
-   React dashboard                live nodes · alerts · consensus ·
-                                  network · front estimate · controls · graphs
+```text
+ESP32 sensing Node 01 -> ThingSpeak channel 1 --+
+ESP32 sensing Node 02 -> ThingSpeak channel 2 --+-> Python adapter -> Spring Boot -> PostgreSQL
+                                               |                       |
+                                               |                 REST + STOMP -> React
+                                               +-> Central ESP32 Node 03 -> independent display
 ```
 
-One Python app, one Spring Boot app, one React app, one database. No microservices.
+The demonstration source replaces only the physical/cloud input, feeding the same normalized backend API. It never writes to ThingSpeak. Spring Boot owns persistence, per-source history, freshness, alert episodes and broadcasts. Python owns validation, filtering, feature derivation and the versioned laboratory movement rule. Mode changes are environment-controlled, with no public UI control of hardware.
 
-## 3. Hardware proposal vs software implementation
+## Quick start with Docker
 
-| Proposed hardware (NOT built)      | Software model (this repo)                        |
-|------------------------------------|---------------------------------------------------|
-| ESP32-WROOM-32 node MCU            | `node/` Python modules per simulated node         |
-| MPU6050 IMU                        | `sensor_simulator.py` tilt angle + tilt rate      |
-| VL53L0X ToF                        | `sensor_simulator.py` displacement + velocity     |
-| Vibration sensor                   | `sensor_simulator.py` vibration amplitude         |
-| SX1276 LoRa radio                  | `adaptive_radio.py` — **simulated** SF / Tx values |
-| TP4056 + 18650 power               | not modelled (energy is a design target only)     |
-
-Nothing here transmits over a real radio or reads a real sensor. Interfaces are shaped so a real driver can replace a simulated one later.
-
-## 4. Technology stack
-
-Python 3.11+ · Java 17+ / Spring Boot 3 · React 18 + TypeScript + Vite · PostgreSQL 14+ · Cisco Packet Tracer (optional) · REST/JSON · WebSocket (STOMP). All local, no paid/cloud service.
-
-## 5. Python AGECM engine
-
-`python-engine/` — see [docs/architecture.md](docs/architecture.md). Runs standalone (`PURE_PYTHON_SIMULATION`) or reads/writes the Packet Tracer bridge (`PACKET_TRACER_HYBRID`).
-
-## 6. Spring Boot backend
-
-`backend/` — one application. Controllers, services, JPA repositories, models. STOMP WebSocket at `/ws`.
-
-## 7. PostgreSQL
-
-Tables: `nodes`, `telemetry`, `consensus_events`, `network_events`, `alerts`, `simulation_runs`. JPA auto-creates the schema (`ddl-auto=update`).
-
-## 8. React dashboard
-
-`frontend/` — Vite + TS. Node table, alerts, consensus, network view, front estimate, simulation controls, sensor graphs. Lightweight charts (custom SVG), no heavy UI framework.
-
-## 9. Packet Tracer
-
-Optional network-simulation layer. Represents topology / links / gateway. **Not** a faithful ESP32 or SX1276 emulator — no real LoRa transmission. See [docs/packet-tracer-setup.md](docs/packet-tracer-setup.md).
-
-## 10. Local bridge
-
-`bridge/incoming` `bridge/outgoing` `bridge/processed` — JSON files exchanged with Packet Tracer mode. Guaranteed fallback; the engine runs fine without it.
-
----
-
-## 11. Installation
+Requires a running Docker engine:
 
 ```bash
-# Python engine
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd /Users/ishaanchandrakar/AGECM_Revised
+cp .env.example .env
+docker compose up --build
 ```
 
-PostgreSQL: create a database `agecm` (see [16](#16-database-structure)). Backend and frontend deps install on first run below.
+Open http://127.0.0.1:5173 . PostgreSQL and ingestion endpoints stay on the internal Compose network. Docker startup was not executed in this environment because its daemon was not running; the native PostgreSQL workflow below was executed.
 
-## 12. Running the Python simulation
+## Native development
+
+Prerequisites: Java 17 or 21, Maven 3.9+, Python 3.10+, Node 22.12+ or 24+, PostgreSQL 16/17. The current machine has Java 21 and PostgreSQL 17; compilation uses Java 17 language/bytecode target. There are no Python package dependencies.
+
+Create an isolated local database once (using an administrator PostgreSQL account):
 
 ```bash
-cd python-engine
-python main.py --scenario gradual_subsidence --nodes 6
+psql postgres -c "CREATE ROLE agecm_revised LOGIN PASSWORD 'agecm_local';"
+createdb -O agecm_revised agecm_revised
 ```
 
-Add `--backend http://localhost:8080` to POST telemetry to Spring Boot. Add `--mode packet_tracer` for hybrid mode. Runs fully offline without either.
-
-## 13. Starting Spring Boot
+This database and role were created during implementation. Do not repeat creation if they already exist.
 
 ```bash
-cd backend
-./mvnw spring-boot:run
+cd /Users/ishaanchandrakar/AGECM_Revised
+cp .env.example .env
+chmod +x scripts/*.sh
+./scripts/dev.sh
 ```
 
-Reads DB config from `src/main/resources/application.properties` (override with env vars `DB_URL`, `DB_USER`, `DB_PASS`).
-
-## 14. Starting React
+The script builds Spring Boot, starts backend/adapter/frontend and stops its processes on Ctrl+C. Logs are under `.runtime/`. Leave `AGECM_MODE=DEMO` to run without hardware. Alternatively, start each component in its own terminal after exporting the variables from `.env`:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+set -a; source .env; set +a
+# On this Mac, when default Java is 25:
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+mvn -f backend/pom.xml spring-boot:run
+python3 processing/adapter.py --scenario cycle
+cd frontend && npm ci && npm run dev
 ```
 
-Opens on `http://localhost:5173`, proxies `/api` and `/ws` to `localhost:8080`.
+The three launch commands above are separate foreground processes, each in a separate terminal. Frontend: http://127.0.0.1:5173 . Backend: http://127.0.0.1:8080 . Vite proxies `/api` and `/ws`, keeping the browser free of private channel credentials. Native backend binds to loopback by default. Replace the local development ingestion token and database password before any shared deployment. No public read authentication is provided; this is a local course-project application.
 
-## 15. Running Packet Tracer hybrid mode
+## Configuration
+
+All variables and safe local defaults are in `.env.example`. Required live settings are `AGECM_MODE=LIVE`, both `THINGSPEAK_NODE{1,2}_CHANNEL_ID` and `THINGSPEAK_NODE{1,2}_READ_KEY`, the database settings, and a matching `INGESTION_TOKEN` for backend and adapter. The native script loads `.env`; direct Maven/Python invocations require exporting it first. Never add private keys to `VITE_*` variables.
+
+`REPORT_INTERVAL_SECONDS=30`, `CLOUD_POLL_SECONDS=15`, `STALE_SECONDS=95`, `REQUEST_TIMEOUT_SECONDS=10`, `REQUEST_RETRIES=2`, and `FEATURE_OWNER=python` are explicit implementation choices. `WARNING_TILT_RATE` and `CRITICAL_TILT_RATE` configure the laboratory rule. Restart adapter/backend after configuration changes. Frontend connection fallback polls every 5 seconds independently of cloud reporting.
+
+Read [the hardware integration guide](docs/hardware-integration.md) for the complete field mapping, write examples, timing/provenance decisions, source identity, cursor recovery, wiring and physical acceptance sequence. It is also served from the Architecture page. Physical channel credentials, verified ESP32 firmware and purchased sensor/display specifications remain outstanding.
+
+## Demo scenarios
 
 ```bash
-cd python-engine
-python main.py --scenario gradual_subsidence --nodes 6 --mode packet_tracer
+python3 processing/adapter.py --scenario cycle
+python3 processing/adapter.py --scenario stationary
+python3 processing/adapter.py --scenario increasing_tilt
+python3 processing/adapter.py --scenario displacement
+python3 processing/adapter.py --scenario vibration
+python3 processing/adapter.py --scenario warning
+python3 processing/adapter.py --scenario critical
+python3 processing/adapter.py --scenario sensor_failure
+python3 processing/adapter.py --scenario stale
+python3 processing/adapter.py --scenario cloud_failure
 ```
 
-Drops per-node JSON in `bridge/incoming/`, reads control replies from `bridge/outgoing/`. See [docs/packet-tracer-setup.md](docs/packet-tracer-setup.md). The rest of the system works whether or not Packet Tracer runs.
+Run only one adapter. The default demo preloads 80 timestamped samples per node, then continues at an explicitly accelerated 2-second cadence. `--seed-count 0` disables preloading; `--once --seed-count 80` sends a finite fixture. Stale mode stops Node 02 after preloading; cloud_failure simulates an outage without sending physical cloud requests. Historical simulation sessions remain source-labeled in PostgreSQL.
 
-## 16. Available scenarios
+## API and data contract
 
-`normal` · `gradual_subsidence` · `sudden_subsidence` · `vibration_noise` · `single_node_fault` · `multi_node_correlated_event` · `recovery`.
+Read routes: `/api/health`, `/api/system/status`, `/api/nodes`, `/api/nodes/{id}`, `/api/nodes/{id}/latest`, `/api/nodes/{id}/history`, `/api/telemetry/latest`, `/api/telemetry/history`, `/api/alerts`, `/api/alerts/{id}`, `/api/integration/thingspeak/status`. History accepts `start`, `end`, `nodeId`, `page` and `size` (max 2,000). Alerts paginate with max 500. Queries are always scoped to the server's active source mode. The UI loads the latest 1,000 samples per node in its selected range and states this limit; all records remain accessible through pagination.
+
+Protected routes use `X-Ingestion-Token`: `POST /api/telemetry`, `POST /api/integration/status`, `GET /api/ingestion/{node}`. Invalid node/source/schema/timestamps are rejected; Node 03 cannot ingest sensing data. The `TelemetryInput` class is the schema 1.0 DTO. Backend receipt time is server-assigned. Missing values stay null. Cloud/source uniqueness and cursor persistence are enforced transactionally. Alerts open once per active condition and resolve as conditions change; stale and cloud failures suppress current movement classification.
+
+STOMP WebSocket endpoint: `/ws`. Topics: `/topic/telemetry`, `/topic/alerts`, `/topic/health`. Events publish after database commit. Frontend reconnects automatically and retains REST polling fallback.
+
+## Tests and validation
 
 ```bash
-python main.py --scenario <name> --nodes <n> --duration <sec> --seed <int>
+python3 -m unittest discover -s processing/tests -v
+JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn -f backend/pom.xml test
+cd frontend && npm run build
+# With native demo services running and Google Chrome installed:
+npm run test:e2e
 ```
 
-## 17. API endpoints
+Backend tests use an isolated H2 database in PostgreSQL compatibility mode; runtime uses genuine PostgreSQL. Browser tests use installed Google Chrome through Playwright, including STOMP telemetry publication. See [validation results](docs/validation.md) for executed checks and limitations.
 
-```
-POST /api/telemetry            ingest one telemetry packet
-GET  /api/nodes                all nodes + latest state
-GET  /api/nodes/{id}           one node + recent telemetry
-GET  /api/alerts               alerts (active first)
-GET  /api/consensus            recent consensus events
-GET  /api/network              recent network events / links
-GET  /api/front-estimation     latest front estimate
-GET  /api/health              liveness
-POST /api/simulation/start     record a simulation run start
-POST /api/simulation/stop      mark run stopped
-POST /api/simulation/reset     clear live tables
-WS   /ws  topic /topic/telemetry /topic/alerts   live updates
+## Repository
+
+```text
+frontend/      React pages, Recharts, API/STOMP provider, responsive CSS, images, browser tests
+backend/       Spring Boot DTO/entities/repositories/service/API, Flyway migration, integration tests
+processing/    ThingSpeak adapter, signal processing, deterministic demo, guarded write test, tests
+docs/          Hardware integration, image provenance/prompts, validation evidence
+output/        Full-resolution generated image masters
+scripts/       Native launch and test helpers
+compose.yaml   PostgreSQL, backend, processing and frontend services
+.env.example   Configuration contract with no private credentials
 ```
 
-## 18. Database structure
+## Boundaries
 
-See [16](#16-database-structure) tables above and `docs/architecture.md`. Columns cover node id, timestamp, sensor values, state, consensus confidence, sampling interval, spreading factor, Tx power, next hop, sequence, scenario.
-
-## 19. Testing
-
-Python: `cd python-engine && pytest`. Backend: `cd backend && ./mvnw test`.
-
-Implemented tests: **T1** gradual ramp (filter/features/WARNING), **T3** vibration noise (no false CRITICAL), **T4** single-node fault (FAULT, not CRITICAL).
-
-Deferred (need hardware / real network): **T2** latency, **T5** neighbour removal, **T6** 24-h energy. Not fabricated.
-
-## 20. Known limitations
-
-- Simulated sensors and radio only — no physical validation.
-- Dynamic multi-hop routing is **partial**: routes are static/deterministic. Code is shaped for later dynamic selection.
-- Packet Tracer cannot emulate ESP32/MPU6050/SX1276 faithfully; it is a network-topology layer only.
-- The 40% energy-saving and 50% false-alarm-reduction figures are **design targets, not measured results**.
-
-## 21. Review 3 future work
-
-Hardware procurement / assembly / bench testing · tilt-rig · dynamic multi-hop route selection · cluster-head election · graph-based front prediction · 20–50 node scale evaluation · threshold calibration on real strata · field trial.
-
----
-
-**No paid or cloud service is required.** Everything runs locally.
+This is a laboratory educational prototype. No physical sensor connectivity, field reliability, LoRa fallback, battery-life saving or mine-failure prediction has been validated. Uptime-only firmware needs a documented UTC anchor before ingestion. Unrecoverable cloud gaps and malformed source identity require manual reconciliation; the adapter will not silently skip them. Rates warm up again after restart. New physical measurements require sensor/firmware calibration and tests; future sensor additions require a schema migration and metric configuration. There are no unused gas, temperature, pressure or humidity cards.

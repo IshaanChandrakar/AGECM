@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.runtime/
+test-results/
+.DS_Store
+*.tsbuildinfo
