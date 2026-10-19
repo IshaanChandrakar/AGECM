@@ -13,7 +13,7 @@ Executed locally on 15 October 2026. This folder is a fresh implementation; the 
 | Actual STOMP WebSocket | Connected, subscribed, ingested an authenticated demo packet, received committed telemetry and read it back from PostgreSQL |
 | Native live-mode smoke test | Separate backend on port 8081 plus Python adapter with no credentials: both nodes Not Configured / Unavailable; central Unverified; no cloud_hardware records created |
 | Docker Compose configuration | Validated with docker compose config -q |
-| Container build/start | Not executed: Docker daemon unavailable on the host |
+| Container build/start | Passed on Windows / WSL 2 on 19 October 2026; see Docker follow-up below |
 | Genuine ThingSpeak/private-channel integration | Not executed: channel IDs/keys and verified hardware were not supplied |
 | Physical sensors, Wi-Fi coverage, central display, LoRa, field reliability | Not verified |
 
@@ -26,6 +26,26 @@ Backend: authenticated ingestion, exact two-sensing-node representation, separat
 Browser: relevant local image loading, homepage/dashboard navigation, mobile menu, API-backed readings, all five chart containers, node/time filters, CSV export, alert dialog, backend failure, empty live mode, all routes without runtime errors or horizontal overflow, and genuine STOMP/REST integration.
 
 Desktop and mobile screenshots are retained in `output/preview/`. Their illustrative images were visually reviewed. Full-page capture scrolls images into view first so lazy loading is exercised. The website's JPGs are approximately 1.7 MB total; source PNGs are retained under `output/imagegen/`.
+
+## Docker follow-up: 19 October 2026
+
+Executed on Windows with WSL 3.0.3, the Docker Desktop WSL 2 engine, and
+Docker Engine 29.8.2:
+
+- `scripts/docker-start.ps1 -Build -Detached` built all three application images
+  and completed its wait for service health successfully.
+- PostgreSQL 16 applied the initial Flyway migration. Backend and frontend
+  health checks passed; the processing container remained running.
+- `GET http://127.0.0.1:5173/api/health` returned `status=UP`,
+  `database=HEALTHY`, and `mode=DEMO` through the frontend proxy.
+- System status returned fresh, healthy, source-labeled demo telemetry for both
+  sensing nodes. The central display remained explicitly unverified.
+- Browser inspection confirmed the homepage rendered and the monitoring page
+  displayed both nodes, fresh measurements, and `WebSocket connected`.
+
+This follow-up establishes Java 17 container startup, superseding the earlier
+native-run limitation below. It does not rerun the full automated browser suite
+or establish physical hardware or private ThingSpeak connectivity.
 
 ## Limits
 
