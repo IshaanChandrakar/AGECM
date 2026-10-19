@@ -50,10 +50,29 @@ docker compose logs --tail 100 -f
 ```
 
 On Windows, `.\scripts\docker-start.ps1` also starts the services in the background.
+Use `.\scripts\docker-start.ps1 -Build -Detached` to rebuild in the background.
+Background startup waits up to 180 seconds for service health, including the
+frontend's connection to the backend. A successful command means the health
+checks passed; inspect `docker compose logs --tail 100` if startup fails.
 After changing application code or Dockerfiles, run with `--build` again.
 Stop the services with `docker compose down`; the database volume is retained.
 
 Open http://127.0.0.1:5173 . PostgreSQL and ingestion endpoints stay on the internal Compose network.
+
+### Windows Docker prerequisites
+
+If Docker reports that Virtual Machine Platform is disabled or WSL is missing,
+open PowerShell **as Administrator** and run:
+
+```powershell
+Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -All -NoRestart
+wsl --install --no-distribution
+```
+
+Restart Windows after enabling the features, then open Docker Desktop and wait
+for its Linux engine to start. Finish any pending WSL installation or update
+requested by Docker Desktop before running the project helper.
 
 ## Native development
 
