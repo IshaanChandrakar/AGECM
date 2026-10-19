@@ -18,15 +18,42 @@ The demonstration source replaces only the physical/cloud input, feeding the sam
 
 ## Quick start with Docker
 
-Requires a running Docker engine:
+Run these commands from the project directory containing `compose.yaml`.
+Install Docker Desktop and wait until its engine is running. On macOS, start it
+with `open -a Docker`; on Windows, launch Docker Desktop from the Start menu.
+
+First run (macOS/Linux):
 
 ```bash
-cd /Users/ishaanchandrakar/AGECM_Revised
 cp .env.example .env
 docker compose up --build
 ```
 
-Open http://127.0.0.1:5173 . PostgreSQL and ingestion endpoints stay on the internal Compose network. Docker startup was not executed in this environment because its daemon was not running; the native PostgreSQL workflow below was executed.
+First run (Windows PowerShell):
+
+```powershell
+.\scripts\docker-start.ps1 -Build
+```
+
+The Windows helper checks Docker, creates `.env` only if missing, and validates
+Compose before starting. It also works when called from another directory.
+Alternatively, copy `.env.example` to `.env` and run `docker compose up --build`
+directly. Keep an existing `.env` when rebuilding so private settings are preserved.
+
+The first build runs in the foreground and streams logs. Use another terminal
+in the project directory for status commands. On later runs:
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose logs --tail 100 -f
+```
+
+On Windows, `.\scripts\docker-start.ps1` also starts the services in the background.
+After changing application code or Dockerfiles, run with `--build` again.
+Stop the services with `docker compose down`; the database volume is retained.
+
+Open http://127.0.0.1:5173 . PostgreSQL and ingestion endpoints stay on the internal Compose network.
 
 ## Native development
 
