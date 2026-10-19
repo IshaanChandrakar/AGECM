@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$Build
+    [switch]$Build,
+    [switch]$Detached
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,11 +22,12 @@ try {
     }
     docker compose config --quiet
     if ($LASTEXITCODE -ne 0) { throw 'Docker Compose configuration is invalid.' }
-    if ($Build) {
-        docker compose up --build
-    } else {
-        docker compose up -d
+    $composeArgs = @('compose', 'up')
+    if ($Build) { $composeArgs += '--build' }
+    if ($Detached -or -not $Build) {
+        $composeArgs += @('-d', '--wait', '--wait-timeout', '180')
     }
+    & docker @composeArgs
     if ($LASTEXITCODE -ne 0) { throw 'Docker Compose startup failed. Review the output above.' }
 } finally {
     Pop-Location
