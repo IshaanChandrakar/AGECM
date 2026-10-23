@@ -22,8 +22,19 @@ __pycache__/
 
 # Local runtime files and logs
 .runtime/
+/tmp/
 *.log
 *.pid
+
+# Generated documents, packages and browser screenshots
+# Keep output/imagegen/ masters and frontend/public/ assets versioned.
+/output/pdf/
+/output/latex/
+/output/preview*/
+
+# Downloaded telemetry exports (do not hide CSV fixtures or source data)
+agecm-*.csv
+/exports/
 
 # Test and coverage reports
 test-results/
@@ -36,6 +47,7 @@ htmlcov/
 
 # Editor and operating system files
 .idea/
+.vscode/
 *.iml
 *.swp
 *.swo
@@ -43,3 +55,22 @@ htmlcov/
 ._*
 Thumbs.db
 Desktop.ini
+
+# Deployment certificates, local exports and backups
+/deploy/certs/*
+!/deploy/certs/.gitkeep
+*.dump
+*.dump.gz
+/backups/
+*.sql.gz
+*.sql.zip
+
+# Local cloud credentials and private key material
+.aws/
+.pgpass
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore

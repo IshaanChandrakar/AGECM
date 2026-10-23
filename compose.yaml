@@ -12,6 +12,7 @@ services:
       timeout: 3s
       retries: 20
   backend:
+    image: agecm-revised-backend:local
     build: ./backend
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/agecm_revised
@@ -19,11 +20,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-agecm_local}
       INGESTION_TOKEN: ${INGESTION_TOKEN:-local-development-token}
       AGECM_MODE: ${AGECM_MODE:-DEMO}
-      FRONTEND_ORIGIN: http://127.0.0.1:5173,http://localhost:5173
-      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-30}
-      STALE_SECONDS: ${STALE_SECONDS:-95}
+      FRONTEND_ORIGIN: http://127.0.0.1:${FRONTEND_PORT:-5173},http://localhost:${FRONTEND_PORT:-5173}
+      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-20}
+      STALE_SECONDS: ${STALE_SECONDS:-65}
       THINGSPEAK_NODE1_CHANNEL_ID: ${THINGSPEAK_NODE1_CHANNEL_ID:-}
       THINGSPEAK_NODE2_CHANNEL_ID: ${THINGSPEAK_NODE2_CHANNEL_ID:-}
+    volumes: [./config:/app/config:ro]
     depends_on:
       postgres: {condition: service_healthy}
     healthcheck:
@@ -32,28 +34,30 @@ services:
       timeout: 5s
       retries: 20
   processing:
+    image: agecm-revised-processing:local
     build: ./processing
     environment:
       BACKEND_URL: http://backend:8080
       INGESTION_TOKEN: ${INGESTION_TOKEN:-local-development-token}
       AGECM_MODE: ${AGECM_MODE:-DEMO}
-      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-30}
-      CLOUD_POLL_SECONDS: ${CLOUD_POLL_SECONDS:-15}
+      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-20}
+      CLOUD_POLL_SECONDS: ${CLOUD_POLL_SECONDS:-5}
       REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-10}
       REQUEST_RETRIES: ${REQUEST_RETRIES:-2}
-      FEATURE_OWNER: ${FEATURE_OWNER:-python}
-      WARNING_TILT_RATE: ${WARNING_TILT_RATE:-0.02}
-      CRITICAL_TILT_RATE: ${CRITICAL_TILT_RATE:-0.10}
+      THINGSPEAK_BASE_URL: ${THINGSPEAK_BASE_URL:-https://api.thingspeak.com}
+      ALLOW_LOCAL_THINGSPEAK_MOCK: ${ALLOW_LOCAL_THINGSPEAK_MOCK:-false}
       THINGSPEAK_NODE1_CHANNEL_ID: ${THINGSPEAK_NODE1_CHANNEL_ID:-}
       THINGSPEAK_NODE1_READ_KEY: ${THINGSPEAK_NODE1_READ_KEY:-}
       THINGSPEAK_NODE2_CHANNEL_ID: ${THINGSPEAK_NODE2_CHANNEL_ID:-}
       THINGSPEAK_NODE2_READ_KEY: ${THINGSPEAK_NODE2_READ_KEY:-}
+    volumes: [./config:/config:ro]
     depends_on:
       backend: {condition: service_healthy}
     restart: on-failure
   frontend:
+    image: agecm-revised-frontend:local
     build: ./frontend
-    ports: [127.0.0.1:5173:80]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-5173}:80"]
     depends_on:
       backend: {condition: service_healthy}
 volumes:

@@ -3,7 +3,7 @@ import { Client } from '@stomp/stompjs';
 import type { SystemStatus, Alert, Page, Reading } from './types';
 
 export async function get<T>(path:string, signal?:AbortSignal):Promise<T>{
- const response=await fetch('/api'+path,{signal:signal || AbortSignal.timeout(10000)});
+ const response=await fetch('/api'+path,{cache:'no-store',signal:signal || AbortSignal.timeout(10000)});
  if(!response.ok)throw new Error(`Monitoring API returned ${response.status}`);
  return response.json();
 }
@@ -29,7 +29,7 @@ export function useHistory(hours:number){
  const {revision}=useData();const [rows,setRows]=useState<Reading[]>([]),[error,setError]=useState<string|null>(null),[loading,setLoading]=useState(true),[total,setTotal]=useState(0);
  useEffect(()=>{const controller=new AbortController();let active=true;setLoading(true);
  const query=`?size=1000&start=${encodeURIComponent(new Date(Date.now()-hours*3600000).toISOString())}`;
- Promise.all(['node_01','node_02'].map(node=>get<Page<Reading>>('/nodes/'+node+'/history'+query,controller.signal))).then(pages=>{if(active){setRows(pages.flatMap(p=>p.content).sort((a,b)=>Date.parse(a.acquiredAt)-Date.parse(b.acquiredAt)));setTotal(pages.reduce((n,p)=>n+p.totalElements,0));setError(null);}}).catch(()=>{if(active)setError('Trend history could not be loaded.');}).finally(()=>{if(active)setLoading(false);});
+ Promise.all(['node_01','node_02'].map(node=>get<Page<Reading>>('/nodes/'+node+'/history'+query,controller.signal))).then(pages=>{if(active){setRows(pages.flatMap(p=>p.content).sort((a,b)=>Date.parse(a.sampleAt)-Date.parse(b.sampleAt)));setTotal(pages.reduce((n,p)=>n+p.totalElements,0));setError(null);}}).catch(()=>{if(active)setError('Trend history could not be loaded.');}).finally(()=>{if(active)setLoading(false);});
  return()=>{active=false;controller.abort();};},[hours,Math.floor(revision/2)]);
  return {rows,error,loading,total};
 }

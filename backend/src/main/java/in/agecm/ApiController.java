@@ -18,6 +18,7 @@ public class ApiController {
  public ApiController(MonitoringService s){service=s;}
  void authorize(String supplied){if(token.isBlank()||supplied==null||!MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8),supplied.getBytes(StandardCharsets.UTF_8)))throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Valid ingestion token required");}
  @GetMapping("/health") public Object health(){service.telemetryCount();return Map.of("status","UP","database","HEALTHY","mode",service.getMode());}
+ @GetMapping("/contract") public Object contract(){return service.contractDocument();}
  @GetMapping("/system/status") public Object status(){return service.status();}
  @GetMapping("/nodes") public Object nodes(){return service.nodes();}
  @GetMapping({"/nodes/{id}","/nodes/{id}/latest"}) public Object node(@PathVariable String id){return service.node(id);}

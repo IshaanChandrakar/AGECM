@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "2.0",
+  "contractVersion": "sensor-v2",
+  "mappingEvidence": "Read-only inspection of both ThingSpeak channel labels on 2026-10-20; no firmware or feed entries available at inspection.",
+  "nodes": {
+    "node_01": {
+      "temperature": "field1",
+      "humidity": "field2",
+      "coMax": "field3",
+      "ch4Max": "field4",
+      "distanceNow": "field5",
+      "devMax": "field6",
+      "statusWorst": "field7",
+      "faultAny": "field8"
+    },
+    "node_02": {
+      "temperature": "field1",
+      "humidity": "field2",
+      "coMax": "field3",
+      "ch4Max": "field4",
+      "distanceNow": "field5",
+      "devMax": "field6",
+      "statusWorst": "field7",
+      "faultAny": "field8"
+    }
+  },
+  "metrics": [
+    {
+      "key": "temperature",
+      "title": "Temperature",
+      "unit": "°C",
+      "fieldLabel": "Temp",
+      "discrete": false,
+      "aggregation": "latest sample"
+    },
+    {
+      "key": "humidity",
+      "title": "Humidity",
+      "unit": "%RH",
+      "fieldLabel": "Humidity",
+      "discrete": false,
+      "aggregation": "latest sample"
+    },
+    {
+      "key": "coMax",
+      "title": "CO max",
+      "unit": "ppm",
+      "fieldLabel": "CO max",
+      "discrete": false,
+      "aggregation": "since last successful upload"
+    },
+    {
+      "key": "ch4Max",
+      "title": "CH4 max",
+      "unit": "ppm",
+      "fieldLabel": "CH4 max",
+      "discrete": false,
+      "aggregation": "since last successful upload"
+    },
+    {
+      "key": "distanceNow",
+      "title": "Distance now",
+      "unit": "mm",
+      "fieldLabel": "Dist Now",
+      "discrete": false,
+      "aggregation": "latest sample"
+    },
+    {
+      "key": "devMax",
+      "title": "Dev max",
+      "unit": "mm",
+      "fieldLabel": "Dev max",
+      "discrete": false,
+      "aggregation": "since last successful upload"
+    },
+    {
+      "key": "statusWorst",
+      "title": "Status worst",
+      "unit": "code",
+      "fieldLabel": "Status worst",
+      "discrete": true,
+      "aggregation": "since last successful upload"
+    },
+    {
+      "key": "faultAny",
+      "title": "Fault any",
+      "unit": "code",
+      "fieldLabel": "Fault any",
+      "discrete": true,
+      "aggregation": "since last successful upload"
+    }
+  ],
+  "devMaxMeaning": "Maximum absolute distance change |distNow − baselineMM| in mm. Baseline is the mean of 30 boot readings and does not adapt.",
+  "aggregationWindow": "Since the last successful ThingSpeak upload: samples every 2 s, uploads every 20 s (normally about 10 samples). Failed uploads extend the window; maxima, worst status and fault OR reset only after a valid entry acknowledgment.",
+  "statusCodes": {
+    "0": {
+      "label": "OK",
+      "severity": 0
+    },
+    "1": {
+      "label": "WARN",
+      "severity": 1
+    },
+    "2": {
+      "label": "DANGER",
+      "severity": 2
+    }
+  },
+  "statusSeverityOrder": [
+    0,
+    1,
+    2
+  ],
+  "faultValues": {
+    "0": {
+      "label": "No fault in window",
+      "isFault": false
+    },
+    "1": {
+      "label": "Fault occurred in window",
+      "isFault": true
+    }
+  },
+  "semanticsConfirmed": true,
+  "sampleIntervalSeconds": 2,
+  "reportIntervalSeconds": 20,
+  "baselineSamples": 30,
+  "firmwareThresholds": {
+    "temperature": {
+      "warn": 35,
+      "danger": 40,
+      "unit": "°C"
+    },
+    "humidity": {
+      "warn": 80,
+      "danger": 90,
+      "unit": "%RH"
+    },
+    "coMax": {
+      "warn": 25,
+      "danger": 50,
+      "unit": "ppm"
+    },
+    "ch4Max": {
+      "warn": 5000,
+      "danger": 10000,
+      "unit": "ppm"
+    },
+    "devMax": {
+      "warn": 20,
+      "danger": 50,
+      "unit": "mm"
+    }
+  },
+  "semanticsEvidence": "User-confirmed ESP32 firmware details on 2026-10-20 (enum, aggregation, thresholds, fault causes and cadence). Firmware source file was not available locally.",
+  "faultCauses": [
+    "DHT11 NaN temperature/humidity",
+    "MQ-9 readRs <= 0 (heater disconnected/off)",
+    "VL53L0X -1 (out of range/status 4), or baseline not captured"
+  ]
+}

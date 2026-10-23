@@ -7,5 +7,6 @@ public class Telemetry extends TelemetryInput {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
  @JsonIgnore public String uniqueKey;
  @JsonIgnore public String sourceKey;
- public Instant receivedAt;
+ public Instant receivedAt, sampleAt;
+ public String timestampBasis, health;
 }

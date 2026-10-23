@@ -1,0 +1,88 @@
+# Standalone production stack: use -f compose.production.yaml, not merged with compose.yaml.
+name: agecm_production
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+services:
+  backend:
+    image: agecm-revised-backend:${IMAGE_TAG:?Set an immutable release tag}
+    build: ./backend
+    restart: unless-stopped
+    stop_grace_period: 40s
+    logging: *logging
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:postgresql://${DB_HOST:?Set the RDS endpoint}:5432/${DB_NAME:?Set the database name}?sslmode=verify-full&sslrootcert=/app/certs/global-bundle.pem
+      DB_USER: ${DB_USER:?Set the application database user}
+      DB_PASSWORD: ${DB_PASSWORD:?Set a production database password}
+      INGESTION_TOKEN: ${INGESTION_TOKEN:?Set a random ingestion token}
+      AGECM_MODE: LIVE
+      FRONTEND_ORIGIN: https://${PUBLIC_DOMAIN:?Set the public DNS hostname}
+      THINGSPEAK_NODE1_CHANNEL_ID: ${THINGSPEAK_NODE1_CHANNEL_ID:?Set Node 01 channel}
+      THINGSPEAK_NODE2_CHANNEL_ID: ${THINGSPEAK_NODE2_CHANNEL_ID:?Set Node 02 channel}
+      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-20}
+      STALE_SECONDS: ${STALE_SECONDS:-65}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=50
+    volumes: [./config:/app/config:ro, ./deploy/certs:/app/certs:ro]
+    tmpfs: [/tmp:rw,nosuid,nodev,size=384m]
+    mem_limit: 1536m
+    healthcheck:
+      test: [CMD-SHELL, "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080; echo -e \"GET /actuator/health HTTP/1.0\r\n\r\n\" >&3; cat <&3 | grep -q UP'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  processing:
+    image: agecm-revised-processing:${IMAGE_TAG:?Set an immutable release tag}
+    build: ./processing
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *logging
+    mem_limit: 256m
+    environment:
+      AGECM_ENV: production
+      AGECM_MODE: LIVE
+      BACKEND_URL: http://backend:8080
+      INGESTION_TOKEN: ${INGESTION_TOKEN:?Set a random ingestion token}
+      THINGSPEAK_BASE_URL: https://api.thingspeak.com
+      ALLOW_LOCAL_THINGSPEAK_MOCK: "false"
+      THINGSPEAK_NODE1_CHANNEL_ID: ${THINGSPEAK_NODE1_CHANNEL_ID:?Set Node 01 channel}
+      THINGSPEAK_NODE1_READ_KEY: ${THINGSPEAK_NODE1_READ_KEY:?Set Node 01 Read API key}
+      THINGSPEAK_NODE2_CHANNEL_ID: ${THINGSPEAK_NODE2_CHANNEL_ID:?Set Node 02 channel}
+      THINGSPEAK_NODE2_READ_KEY: ${THINGSPEAK_NODE2_READ_KEY:?Set Node 02 Read API key}
+      CLOUD_POLL_SECONDS: ${CLOUD_POLL_SECONDS:-5}
+      REQUEST_TIMEOUT_SECONDS: 10
+      REQUEST_RETRIES: 2
+      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-20}
+    volumes: [./config:/config:ro]
+    depends_on: {backend: {condition: service_healthy}}
+  frontend:
+    image: agecm-revised-frontend:${IMAGE_TAG:?Set an immutable release tag}
+    build: ./frontend
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *logging
+    mem_limit: 128m
+    volumes: [./deploy/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro]
+    depends_on: {backend: {condition: service_healthy}}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1/healthz]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *logging
+    mem_limit: 256m
+    ports: ["80:80", "443:443"]
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set the public DNS hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?Set the TLS certificate contact email}
+    volumes: [./deploy/Caddyfile:/etc/caddy/Caddyfile:ro, caddy-data:/data, caddy-config:/config]
+    depends_on: {frontend: {condition: service_healthy}}
+volumes:
+  caddy-data:
+  caddy-config:

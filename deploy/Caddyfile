@@ -1,0 +1,16 @@
+{
+ email {$ACME_EMAIL}
+ admin off
+}
+{$PUBLIC_DOMAIN} {
+ encode zstd gzip
+ header {
+  X-Content-Type-Options nosniff
+  X-Frame-Options DENY
+  Referrer-Policy same-origin
+  Strict-Transport-Security "max-age=31536000"
+ }
+ reverse_proxy frontend:80
+ # Access logging intentionally disabled: exports use temporary capability URLs.
+ # Container/service errors still go to stdout and Docker's rotated logs.
+}

@@ -1,89 +1,64 @@
-# AGECM hardware and ThingSpeak integration
+# Actual ESP32 / ThingSpeak sensor contract (schema 2.0)
 
-This is the **proposed schema 1.0**, not evidence of an already deployed channel or verified physical system. Exactly two ESP32 boards sense, and a third independently reads cloud measurements and drives a display. No physical gateway or active LoRa transport is part of the current build.
+Read-only inspection on 20 October 2026 independently confirmed these labels on both configured channels. Both feeds were empty and channel metadata was blank at inspection; no firmware was found locally. This confirms field assignment, not units or firmware semantics.
 
-## Configure the two private channels
+| Field | Node 01 | Node 02 | Unit / semantics |
+|---|---|---|---|
+| field1 | Temperature | Temperature | °C · latest sample |
+| field2 | Humidity | Humidity | %RH · latest sample |
+| field3 | CO max | CO max | ppm · maximum in upload window |
+| field4 | CH4 max | CH4 max | ppm · maximum in upload window |
+| field5 | Distance now | Distance now | mm · latest VL53L0X reading; -1 invalid |
+| field6 | Dev max | Dev max | mm · maximum absolute change from boot baseline |
+| field7 | Status worst | Status worst | 0 OK < 1 WARN < 2 DANGER · worst in window |
+| field8 | Fault any | Fault any | 0 no fault; 1 any failed sample in window |
 
-1. Create two private ThingSpeak channels with all eight fields enabled. Associate Channel 1 exclusively with `node_01` and Channel 2 with `node_02`.
-2. Copy `.env.example` to `.env`. Configure each channel ID and its Read API key. Keep keys out of Git and browser code. The sensing firmware alone needs the node-specific Write API key.
-3. Set `AGECM_MODE=LIVE` for both backend and adapter and restart both. Live mode never starts the demo generator. Do not run two adapter instances against the same channels.
-4. Use `FEATURE_OWNER=python` by default. Firmware may leave fields 4/5 empty. If the firmware owns both rates, set `FEATURE_OWNER=firmware`; the adapter consumes the supplied rates without filtering/differentiating again. Numerical agreement needs bench testing.
-5. Configure acquisition/report timing and quality semantics in firmware. Default reporting is 30 s, cloud polling 15 s, staleness 95 s and UI polling 5 s. These are independently configurable and do not establish physical measurement latency.
+The user confirmed the firmware semantics on 20 October 2026. The firmware file itself was not present locally, so these details are attributed to that confirmation rather than a source-file audit.
 
-| Field | Meaning | Unit / convention |
+**Window semantics:** samples every 2 seconds, scheduled uploads every 20 seconds, normally about 10 samples. Window aggregates reset only after a valid ThingSpeak entry acknowledgment. Failed uploads extend the window until the next successful upload. Latest temperature/humidity/distance snapshots and window maxima/codes share a row: DANGER can coexist with a normal latest temperature after an earlier spike.
+
+**Deviation:** `abs(distNow - baselineMM)` in mm, maximum across the upload window. Baseline is the average of 30 readings captured once at boot and never adapts. A zero distance/deviation during a fault window can be ambiguous; the app retains zero and annotates it rather than treating it as a missing value or proof of no movement. Raw distance -1 is preserved in `rawDistanceNow`; `distanceNow=null` creates a chart gap and unavailable distance card.
+
+**Status:** 0 OK (all parameters within normal limits), 1 WARN (at least one warning threshold crossed), 2 DANGER (at least one danger threshold crossed). Firmware combines parameter and window levels with maximum. Snapshot values must not be used to recompute or downgrade the uploaded worst status.
+
+| Firmware parameter | WARN ≥ | DANGER ≥ |
 |---|---|---|
-| field1 | Calibrated tilt angle | degrees, signed axis documented by hardware team |
-| field2 | Relative displacement | mm, fixed-target baseline |
-| field3 | Vibration proxy | g, defined acceleration summary; not a spectrum |
-| field4 | Tilt rate | degrees/s, optional when Python owns features |
-| field5 | Displacement velocity | mm/s, optional when Python owns features |
-| field6 | Quality flags | integer; 0 valid, bit 0 IMU failure, bit 1 ToF failure, bit 2 not calibrated, bit 3 window not ready; any nonzero flag invalidates this prototype's feature window |
-| field7 | Sequence | nonnegative integer, monotonic during a boot |
-| field8 | Boot ID | unique string per boot, at most 100 characters |
+| Temperature | 35 °C | 40 °C |
+| Humidity | 80 %RH | 90 %RH |
+| CO | 25 ppm | 50 ppm |
+| CH4 | 5000 ppm | 10000 ppm |
+| Absolute displacement | 20 mm | 50 mm |
 
-The `status` field is compact JSON:
+These are confirmed firmware thresholds, not independently validated mine-safety limits. They are documented and exposed as metadata; the website does not reclassify snapshots. CH4 5000 ppm = 0.5% and 10000 ppm = 1% by volume under the firmware's stated convention.
 
-```json
-{"schema":"1.0","acquiredAt":"2026-10-15T12:00:00Z","uptimeMs":120000,"calibrated":true,"sampleIntervalMs":100,"reportIntervalSeconds":30}
-```
+**Fault:** a logical OR since the last successful upload. 0 means no sensor fault in that window; 1 means at least one failed sample. Causes reported by firmware: DHT11 NaN temperature/humidity; MQ-9 `readRs() <= 0` (heater off/disconnected); VL53L0X -1/out-of-range/status 4 or unavailable baseline. A fault flag does not identify which of the valid displayed fields failed historically. Other valid measurements remain visible.
 
-Use synchronized UTC acquisition timestamps. The adapter intentionally rejects uptime-only entries because no trusted UTC anchor is available; `uptimeMs` is preserved as supplemental metadata. Never substitute the cloud timestamp for acquisition time. This conservative policy is an implementation decision.
+## Shared configuration
 
-## Write contract: sensing ESP32 to ThingSpeak
+`config/sensor-contract.json` is the shared non-secret contract, mounted read-only into backend and processor containers. It has separate per-node field maps. The reader verifies each returned channel ID and its field labels on every poll. A metadata change stops interpretation of that channel until reviewed.
 
-```http
-POST https://api.thingspeak.com/update.json
-Content-Type: application/json
+The confirmed metric units, deviation definition, mixed upload window, numeric severity order and fault convention are configured here with `semanticsConfirmed=true`. Firmware thresholds are metadata, not platform classifiers. A future change requires explicit contract review and restarting backend/processor. Unknown codes remain unavailable rather than being treated as healthy. No API keys belong in this JSON.
 
-{
-  "api_key": "<this node's Write API key>",
-  "field1": 1.2, "field2": 0.4, "field3": 0.03,
-  "field6": 0, "field7": 100, "field8": "unique-boot-id",
-  "status": "{\"schema\":\"1.0\",\"acquiredAt\":\"2026-10-15T12:00:00Z\",\"calibrated\":true,\"sampleIntervalMs\":100,\"reportIntervalSeconds\":30}"
-}
-```
+No platform thresholds, smoothing, tilt rates, derived displacement velocities, consensus confidence or mine-failure prediction rules are applied. Firmware-provided maxima/worst/any values are stored and displayed directly. Numeric zero remains distinct from missing or invalid values. Missing values remain gaps; partial data and window faults are marked without hiding other valid measurements.
 
-Validate HTTPS certificates and HTTP status. Require a positive `entry_id` and the expected `channel_id` in the JSON response before recording success. HTTP 200 or a TCP connection alone is insufficient. Retry with bounded backoff and respect the actual account quota. Do not replay ambiguous writes blindly: a lost success response may already have created a cloud entry. Preserve boot/sequence identity so downstream ingestion can deduplicate it. ThingSpeak requires unique timestamps.
+## Identity and time
 
-The development utility is disabled by default. It must target a **separate test channel**, with explicit `ENABLE_THINGSPEAK_WRITE_TEST=true`, `THINGSPEAK_TEST_CHANNEL_ID`, and `THINGSPEAK_TEST_WRITE_KEY`. Run `python3 processing/write_test.py` once. The website and normal adapter never write synthetic data into sensing channels.
+Cloud records require the configured node/channel identity, a positive ThingSpeak `entry_id`, and timezone-aware `created_at`. Deduplication is enforced by `(channel_id,entry_id)`; boot/sequence metadata is optional and is never read from fields 7/8. Those fields are status and fault measurements.
 
-## Read contract and durable ingestion
+No schema 1.0 JSON `status`, boot ID, sequence, calibration flag, IMU data or feature window is required to read actual feeds. If `status` contains JSON `acquiredAt`, the true acquisition UTC is preserved. Plain-text `status` is also supported. Otherwise `acquiredAt=null`, `sampleAt=cloudCreatedAt`, and `timestampBasis=CLOUD_CREATED_AT`. The UI explicitly labels cloud time. A cloud timestamp is not sensor acquisition time.
 
-```http
-GET https://api.thingspeak.com/channels/<channel_id>/feeds.json?api_key=<read_key>&results=100&status=true
-```
+Cursor updates occur in the telemetry transaction. Restart recovery reads only the cursor for the active channel and schema. Old schema cursors do not skip new-contract records. Records are sorted chronologically for processing, and older backfilled entries cannot replace newer samples or trigger current alerts. If catch-up exceeds readable history, a visible Gap requires reconciliation. A failed backend delivery does not advance the cursor.
 
-The adapter polls channels independently with bounded timeouts/retries, checks string/null numeric fields, identity, finite ranges, schema and timestamps. It requests a larger catch-up window (maximum 8,000) only if necessary. Larger feeds may be cached by ThingSpeak, so current monitoring stays on small windows.
+## Credentials and read-only operation
 
-Cloud identity `(channel_id, entry_id)` and source identity `(node_id, source, boot_id, sequence)` have database uniqueness constraints. A cursor advances in the **same PostgreSQL transaction** as telemetry persistence and is read back after adapter restart. In-memory processing state is rolled back on failed delivery. A detected unrecoverable cloud-history gap stops that channel and records `GAP`; it requires manual review, not silent cursor advancement. Invalid identity/schema similarly stops the channel at the offending entry. Missing sensor values are persisted as invalid measurements rather than converted to zero.
+Local values were found in `.env.example` during this update and preserved in ignored, mode-0600 `.env`. The shareable example was sanitized. Do not commit `.env` or paste keys in screenshots. Read API keys are passed only to the server-side reader; write API keys belong only to each ESP32 firmware. The browser receives neither.
 
-After adapter restart, feature buffers warm up again on subsequent new entries. Historical records remain available; rates and conditions remain unavailable until a new valid window is complete. An older backfilled record cannot replace a newer node snapshot or create a current movement episode. Run one ingestion adapter instance; multi-writer operation is outside this prototype.
+Normal reads use `GET https://api.thingspeak.com/channels/<channel>/feeds.json`, the channel Read API key, `results=100`, and `status=true`. A bounded 8,000-entry catch-up is requested only when needed. Requests use HTTPS with timeouts/retries. Keys/credential-bearing URLs are not logged.
 
-## Processing policy
+No real sensing channel was written to. The developer write utility remains disabled and requires separate explicit authorization and a dedicated test channel. The website does not need Write API keys. Local mocked ThingSpeak tests use a different Docker service, fixture channel IDs and non-secret fixture read keys.
 
-Python applies a five-sample moving average to tilt/displacement, then an eight-point filtered feature window, deriving rates from actual elapsed seconds. Raw calibrated values remain in history. The first derived rate therefore requires 12 valid raw inputs. Missing/invalid data, reboot or a long sampling gap resets readiness. At 30-second reporting cadence, 12 inputs span 330 seconds; firmware-side summaries can reduce that delay but need validation.
+## Firmware work still needed
 
-`lab-rule-v1` uses **magnitude** tilt rate. Defaults: Warning 0.02 degrees/s and Critical 0.10 degrees/s; 3 consecutive evaluations escalate; 5 recover; recovery thresholds have 30% hysteresis. The state machine begins evaluating after feature readiness; until a qualifying elevated dwell is reached it remains Normal, meaning no confirmed escalation under this rule. Displacement/vibration are observed but do not independently gate this reference rule. No legacy consensus gate or confidence percentage is reused. Thresholds are laboratory settings, not mine safety limits. Invalid/stale/cloud-error data has separate health and yields unavailable current movement status.
+Confirm the actual firmware build, sensor pin assignments, gas calibration, captured baseline and aggregation behavior on physical hardware. Then publish distinct identifiable entries from each node and compare by channel, entry ID and timestamp through cloud, database, API and UI. Validate sensor-disconnection behavior, partial faults, clock synchronization, stalled publishing, network failures and recovery.
 
-## Wiring and hardware verification
-
-Reference classic ESP32 devkit wiring: SDA GPIO21, SCL GPIO22, common ground, appropriate 3.3 V supply. MPU6050 typically 0x68/0x69, VL53L0X typically 0x29. Verify the purchased breakout voltages, pull-ups, addresses and driver compatibility. Secure the IMU to the moving rig and mount the ToF target independently; moving target and sensor together cannot demonstrate displacement. Record mounting axis, signed baseline, stationary noise, calibration and local sampling rate.
-
-Node 03 needs independent Wi-Fi, both Read API credentials, bounded polling and a compatible display driver. The display model is unselected. Its firmware should show node identity, values, units, acquisition age, source and sensor/cloud faults. It receives no laptop-generated classification unless a separate result path is implemented. The website keeps its status **Unverified** because no central heartbeat protocol is integrated.
-
-## Physical acceptance sequence
-
-- Scan I2C addresses and validate both raw sensors separately.
-- Calibrate each node; record baseline/noise, movement signs, units and timestamps.
-- Confirm distinct channel entries and positive write acknowledgments.
-- Trace an entry from ESP32 through cloud, adapter, PostgreSQL and React.
-- Compare Python rates with known timed rig movement.
-- Test duplicate delivery, rebooted sequence, missing/null values, out-of-order backfill, stalled node, failed cloud read and backend outage.
-- Disconnect the laptop and verify Node 03 continues its own cloud reads.
-- Verify that failed internet/cloud access ages values and never falsely reports Normal.
-
-## Current and future boundaries
-
-The software demo and mocked cloud tests do not validate physical sensing, mine deployment, LoRa propagation, battery life, certified safety or prediction accuracy. Future LoRa fallback requires three compatible radios, a packet and failover protocol, central local algorithms, buffering/deduplication and representative radio tests. A two-producer/one-receiver radio arrangement is a star; it is not automatically a mesh.
-
-Official API references: [Read Data](https://www.mathworks.com/help/thingspeak/readdata.html), [Write Data](https://www.mathworks.com/help/thingspeak/writedata.html), [Channel Data Control](https://www.mathworks.com/help/thingspeak/channel-control.html). API request/response formats were checked against MathWorks documentation on 15 October 2026; verify subscription-specific limits before physical operation.
+Node 03 remains an independent cloud reader/display with no sensing role. It stays Unverified in the website until an actual heartbeat/status integration exists. No LoRa, offline mesh, battery-life, field-safety or prediction claim follows from this software test.

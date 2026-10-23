@@ -1,0 +1,26 @@
+# Repeatable isolated integration fixture. Does not contact real sensing channels.
+services:
+  thingspeak-mock:
+    image: python:3.12-slim
+    volumes: [./processing/fixtures:/fixtures:ro]
+    command: [python, /fixtures/thingspeak_mock.py]
+  backend:
+    environment:
+      AGECM_MODE: LIVE
+      LOCAL_THINGSPEAK_MOCK_ACTIVE: 'true'
+      THINGSPEAK_NODE1_CHANNEL_ID: '100'
+      THINGSPEAK_NODE2_CHANNEL_ID: '200'
+      INGESTION_TOKEN: fixture-ingestion-token
+  processing:
+    environment:
+      AGECM_MODE: LIVE
+      INGESTION_TOKEN: fixture-ingestion-token
+      THINGSPEAK_BASE_URL: http://thingspeak-mock:8090
+      ALLOW_LOCAL_THINGSPEAK_MOCK: 'true'
+      THINGSPEAK_NODE1_CHANNEL_ID: '100'
+      THINGSPEAK_NODE2_CHANNEL_ID: '200'
+      THINGSPEAK_NODE1_READ_KEY: fixture-read-1
+      THINGSPEAK_NODE2_READ_KEY: fixture-read-2
+      CLOUD_POLL_SECONDS: '5'
+    depends_on:
+      thingspeak-mock: {condition: service_started}

@@ -1,0 +1,6 @@
+{
+ "Version": "2012-10-17",
+ "Statement": [
+  {"Effect": "Allow", "Action": "ssm:GetParameter", "Resource": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/agecm/production/env"}
+ ]
+}

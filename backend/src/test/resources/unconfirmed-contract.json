@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "2.0",
+  "contractVersion": "sensor-v2",
+  "mappingEvidence": "Read-only inspection of both ThingSpeak channel labels on 2026-10-20; no firmware or feed entries available at inspection.",
+  "nodes": {
+    "node_01": {"temperature":"field1","humidity":"field2","coMax":"field3","ch4Max":"field4","distanceNow":"field5","devMax":"field6","statusWorst":"field7","faultAny":"field8"},
+    "node_02": {"temperature":"field1","humidity":"field2","coMax":"field3","ch4Max":"field4","distanceNow":"field5","devMax":"field6","statusWorst":"field7","faultAny":"field8"}
+  },
+  "metrics": [
+    {"key":"temperature","title":"Temperature","unit":null,"fieldLabel":"Temp","discrete":false},
+    {"key":"humidity","title":"Humidity","unit":null,"fieldLabel":"Humidity","discrete":false},
+    {"key":"coMax","title":"CO max","unit":null,"fieldLabel":"CO max","discrete":false},
+    {"key":"ch4Max","title":"CH4 max","unit":null,"fieldLabel":"CH4 max","discrete":false},
+    {"key":"distanceNow","title":"Distance now","unit":null,"fieldLabel":"Dist Now","discrete":false},
+    {"key":"devMax","title":"Dev max","unit":null,"fieldLabel":"Dev max","discrete":false},
+    {"key":"statusWorst","title":"Status worst","unit":"code","fieldLabel":"Status worst","discrete":true},
+    {"key":"faultAny","title":"Fault any","unit":"code","fieldLabel":"Fault any","discrete":true}
+  ],
+  "devMaxMeaning": null,
+  "aggregationWindow": null,
+  "statusCodes": {},
+  "statusSeverityOrder": [],
+  "faultValues": {},
+  "semanticsConfirmed": false
+}
